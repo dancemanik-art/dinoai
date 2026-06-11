@@ -1,0 +1,12 @@
+[
+  {
+    "id": "lead_1781124845655_8yyh06",
+    "name": "Jan Novák",
+    "email": "jan@example.cz",
+    "phone": "+420777123456",
+    "message": "Mám zájem o přednostní přístup.",
+    "source": "navbar",
+    "createdAt": "2026-06-10T20:54:05.655Z",
+    "status": "new"
+  }
+]
