@@ -3,12 +3,14 @@ import Reveal from "@/components/Reveal";
 import About from "@/components/About";
 import { LeadButton } from "@/components/LeadModal";
 import { ArrowRightIcon, SparklesIcon, ChatIcon, ShieldIcon } from "@/components/icons";
+import { createPageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "O DINO AI — Váš osobní průvodce světem financí | DINO AI",
+export const metadata: Metadata = createPageMetadata({
+  title: "O DINO AI",
   description:
-    "DINO AI je váš osobní průvodce světem financí, investic a majetku. Pomáhá vám dělat chytřejší rozhodnutí — srozumitelně, moderně a lidsky.",
-};
+    "DINO AI je váš osobní průvodce světem financí, investic a majetku. Pomáhá vám dělat chytřejší rozhodnutí — srozumitelně, moderně a lidsky.",
+  path: "/o-dino-ai",
+});
 
 const pillars = [
   {

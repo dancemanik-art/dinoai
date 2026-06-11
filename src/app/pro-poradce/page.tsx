@@ -3,12 +3,14 @@ import Reveal from "@/components/Reveal";
 import ForAdvisors from "@/components/ForAdvisors";
 import { LeadButton } from "@/components/LeadModal";
 import { ArrowRightIcon, CheckIcon } from "@/components/icons";
+import { createPageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Pro poradce — Vlastní AI asistent pod vaší značkou | DINO AI",
+export const metadata: Metadata = createPageMetadata({
+  title: "Pro poradce",
   description:
-    "Vytvoříme AI asistenta, který bude vystupovat pod vaším jménem, logem a vizuální identitou. Vaši klienti tak komunikují s vaším digitálním průvodcem, nikoliv s anonymní umělou inteligencí.",
-};
+    "Vytvoříme AI asistenta, který bude vystupovat pod vaším jménem, logem a vizuální identitou. Vaši klienti tak komunikují s vaším digitálním průvodcem, nikoliv s anonymní umělou inteligencí.",
+  path: "/pro-poradce",
+});
 
 const benefits = [
   "Vystupuje pod vaším jménem a logem",

@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import Reveal from "@/components/Reveal";
 import Contact from "@/components/Contact";
+import { createPageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Kontakt | DINO AI",
+export const metadata: Metadata = createPageMetadata({
+  title: "Kontakt",
   description:
-    "Spojte se s týmem DINO AI. Rádi vám pomůžeme s financemi, investicemi i vlastním AI asistentem pod vaší značkou.",
-};
+    "Spojte se s týmem DINO AI. Rádi vám pomůžeme s financemi, investicemi i vlastním AI asistentem pod vaší značkou.",
+  path: "/kontakt",
+});
 
 export default function Kontakt() {
   return (
