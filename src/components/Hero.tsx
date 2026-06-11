@@ -111,10 +111,13 @@ export default function Hero() {
                 <span className="text-gold-gradient font-semibold">DINO AI</span>.
                 Jak vám dnes mohu pomoci?
               </p>
-              <span className="mt-1.5 flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-muted">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                Online · odpovídám hned
-              </span>
+              <div className="mt-1.5 flex flex-col gap-0.5 text-[10px] uppercase tracking-widest text-muted">
+                <span className="flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                  Online
+                </span>
+                <span className="pl-3">odpovídám hned</span>
+              </div>
             </div>
 
             {/* handwritten gold signature */}
