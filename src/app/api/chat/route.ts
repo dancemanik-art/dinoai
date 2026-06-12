@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import {
   CHAT_ERROR_GENERIC,
-  CHAT_ERROR_UNAVAILABLE,
+  CHAT_ERROR_MISSING_KEY,
+  CHAT_ERROR_NETWORK,
+  DEFAULT_MAX_OUTPUT_TOKENS,
   DINO_SYSTEM_PROMPT,
+  resolveChatModel,
+  trimMessagesForContext,
   userFacingChatError,
   validateChatRequest,
 } from "@/lib/chat";
@@ -14,11 +18,19 @@ type OpenAIResponse = {
   error?: { message?: string; type?: string; code?: string };
 };
 
+function parseMaxTokens(): number {
+  const raw = process.env.OPENAI_MAX_TOKENS;
+  if (!raw) return DEFAULT_MAX_OUTPUT_TOKENS;
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isFinite(n) || n < 100) return DEFAULT_MAX_OUTPUT_TOKENS;
+  return Math.min(n, 800);
+}
+
 export async function POST(request: Request) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     console.error("[chat] OPENAI_API_KEY is not configured");
-    return NextResponse.json({ ok: false, error: CHAT_ERROR_UNAVAILABLE }, { status: 503 });
+    return NextResponse.json({ ok: false, error: CHAT_ERROR_MISSING_KEY }, { status: 503 });
   }
 
   let body: unknown;
@@ -33,7 +45,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: parsed.error }, { status: 422 });
   }
 
-  const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
+  const model = resolveChatModel();
+  const contextMessages = trimMessagesForContext(parsed.messages);
+  const maxTokens = parseMaxTokens();
 
   try {
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -44,11 +58,11 @@ export async function POST(request: Request) {
       },
       body: JSON.stringify({
         model,
-        temperature: 0.7,
-        max_tokens: 900,
+        temperature: 0.5,
+        max_tokens: maxTokens,
         messages: [
           { role: "system", content: DINO_SYSTEM_PROMPT },
-          ...parsed.messages,
+          ...contextMessages,
         ],
       }),
     });
@@ -62,6 +76,7 @@ export async function POST(request: Request) {
         type: data.error?.type,
         code: data.error?.code,
         message: detail,
+        model,
       });
       return NextResponse.json(
         { ok: false, error: userFacingChatError(res.status, detail) },
@@ -71,13 +86,13 @@ export async function POST(request: Request) {
 
     const reply = data.choices?.[0]?.message?.content?.trim();
     if (!reply) {
-      console.error("[chat] OpenAI returned empty reply");
+      console.error("[chat] OpenAI returned empty reply", { model });
       return NextResponse.json({ ok: false, error: CHAT_ERROR_GENERIC }, { status: 502 });
     }
 
     return NextResponse.json({ ok: true, message: reply });
   } catch (err) {
-    console.error("[chat] request failed:", err);
-    return NextResponse.json({ ok: false, error: CHAT_ERROR_GENERIC }, { status: 500 });
+    console.error("[chat] network/request failed:", err);
+    return NextResponse.json({ ok: false, error: CHAT_ERROR_NETWORK }, { status: 500 });
   }
 }

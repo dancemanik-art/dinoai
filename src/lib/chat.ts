@@ -9,45 +9,101 @@ export type ChatRequestBody = {
   messages: ChatMessage[];
 };
 
-export const MAX_MESSAGES = 24;
-export const MAX_MESSAGE_LENGTH = 2000;
+export const MAX_MESSAGES = 16;
+export const MAX_MESSAGE_LENGTH = 1500;
+/** Počet zpráv odesílaných do OpenAI (posledních N) — šetří tokeny. */
+export const MAX_CONTEXT_MESSAGES = 10;
+export const DEFAULT_CHAT_MODEL = "gpt-4.1-mini";
+export const DEFAULT_MAX_OUTPUT_TOKENS = 450;
 
-/** Zpráva pro uživatele při výpadku kvóty / billingu OpenAI. */
-export const CHAT_ERROR_UNAVAILABLE =
-  "AI asistent je momentálně nedostupný z důvodu technické konfigurace. Zkuste to prosím za chvíli znovu.";
+/** Povolené levné modely (výchozí provoz). */
+export const ECONOMY_MODELS = new Set(["gpt-4.1-mini", "gpt-4o-mini"]);
 
-/** Obecná chybová zpráva — bez interních detailů. */
+/** Drahé modely — jen s OPENAI_ALLOW_EXPENSIVE_MODEL=true */
+const EXPENSIVE_MODEL_PATTERN =
+  /^(gpt-4\.1(?!-mini)|gpt-4o(?!-mini)|gpt-5|o1|o3|chatgpt-4o-latest)/i;
+
+export const CHAT_ERROR_MISSING_KEY =
+  "AI asistent není momentálně k dispozici. Zkuste to prosím později.";
+
+export const CHAT_ERROR_QUOTA =
+  "AI služba je dočasně nedostupná z důvodu vyčerpaného kreditu. Zkuste to prosím později.";
+
+export const CHAT_ERROR_RATE_LIMIT =
+  "AI služba je dočasně přetížená. Počkejte prosím chvíli a zkuste to znovu.";
+
+export const CHAT_ERROR_NETWORK =
+  "Nepodařilo se spojit se serverem. Zkontrolujte připojení a zkuste to znovu.";
+
+/** @deprecated use specific errors above */
+export const CHAT_ERROR_UNAVAILABLE = CHAT_ERROR_MISSING_KEY;
+
 export const CHAT_ERROR_GENERIC =
   "Omlouváme se, odpověď se nepodařilo načíst. Zkuste to prosím znovu.";
 
 export function isOpenAIQuotaOrBillingError(status: number, message?: string): boolean {
-  if (status === 429) return true;
   const m = (message || "").toLowerCase();
-  return (
-    m.includes("quota") ||
-    m.includes("billing") ||
-    m.includes("insufficient") ||
-    m.includes("exceeded your current") ||
-    m.includes("payment") ||
-    m.includes("credit")
-  );
+  if (m.includes("quota") || m.includes("billing") || m.includes("insufficient")) return true;
+  if (m.includes("exceeded your current") || m.includes("payment") || m.includes("credit"))
+    return true;
+  return status === 402;
+}
+
+export function isOpenAIRateLimitError(status: number, message?: string): boolean {
+  if (status !== 429) return false;
+  const m = (message || "").toLowerCase();
+  if (isOpenAIQuotaOrBillingError(status, message)) return false;
+  return m.includes("rate limit") || m.includes("too many requests") || m.includes("requests per");
 }
 
 export function userFacingChatError(status: number, openAiMessage?: string): string {
-  if (isOpenAIQuotaOrBillingError(status, openAiMessage)) {
-    return CHAT_ERROR_UNAVAILABLE;
+  if (status === 429) {
+    if (isOpenAIRateLimitError(status, openAiMessage)) return CHAT_ERROR_RATE_LIMIT;
+    return CHAT_ERROR_QUOTA;
   }
+  if (isOpenAIQuotaOrBillingError(status, openAiMessage)) return CHAT_ERROR_QUOTA;
   return CHAT_ERROR_GENERIC;
+}
+
+/** Vybere model — default gpt-4.1-mini, blokuje drahé modely bez explicitního povolení. */
+export function resolveChatModel(): string {
+  const requested = process.env.OPENAI_MODEL?.trim();
+  const allowExpensive = process.env.OPENAI_ALLOW_EXPENSIVE_MODEL === "true";
+
+  if (!requested) return DEFAULT_CHAT_MODEL;
+
+  if (ECONOMY_MODELS.has(requested)) return requested;
+
+  if (!allowExpensive && EXPENSIVE_MODEL_PATTERN.test(requested)) {
+    console.warn(
+      `[chat] Model "${requested}" je drahý a není povolen. Použit ${DEFAULT_CHAT_MODEL}.`,
+    );
+    return DEFAULT_CHAT_MODEL;
+  }
+
+  if (!allowExpensive) {
+    console.warn(
+      `[chat] Model "${requested}" není na seznamu levných modelů. Použit ${DEFAULT_CHAT_MODEL}.`,
+    );
+    return DEFAULT_CHAT_MODEL;
+  }
+
+  return requested;
+}
+
+export function trimMessagesForContext(messages: ChatMessage[]): ChatMessage[] {
+  if (messages.length <= MAX_CONTEXT_MESSAGES) return messages;
+  return messages.slice(-MAX_CONTEXT_MESSAGES);
 }
 
 export const DINO_SYSTEM_PROMPT = `Jsi DINO AI — osobní průvodce světem financí, investic a nemovitostí. Vystupuješ jako zkušený český expert s lidským, klidným a profesionálním tónem. Inspiruješ se přístupem Daniela Ilka: vysvětluješ souvislosti, ne jen produkty.
 
 ## Osobnost a styl
 - Mluv česky, přirozeně a lidsky — jako chytrý průvodce u kávy, ne jako robot nebo právník.
-- Buď vstřícný, empatický a věcný. Oceň otázku uživatele, když to dává smysl.
-- Piš srozumitelně: krátké odstavce, odrážky, konkrétní příklady. Žargon vysvětli hned plain language.
-- Emoji používej střídmě (max. 1 na odpověď), spíš v úvodu nebo povzbuzení.
-- Nebuď stručný za každou cenu — raději jasně a užitečně než povrchně.
+- Buď vstřícný, empatický a věcný.
+- Piš stručně a efektivně: ideálně 2–4 krátké odstavce nebo odrážky. Každá věta ať přináší hodnotu.
+- Vyhni se opakování, dlouhým úvodům a zbytečným detailům. Žargon vysvětli jednou větou.
+- Emoji max. 1 na odpověď, spíš výjimečně.
 
 ## Odbornost — české finance a nemovitosti
 - Znáš kontext českého trhu: koruny (Kč), české banky a hypotéky, LTV, fixace sazeb, refinancování, RPSN, nemovitostní registry, kupní smlouvy, nájem vs. vlastnictví, investiční byty v ČR, daně z nemovitostí, případně DPH u developerů, stavební spoření, penze, fondy, inflace v českém prostředí.
@@ -56,13 +112,12 @@ export const DINO_SYSTEM_PROMPT = `Jsi DINO AI — osobní průvodce světem fin
   • investiční byt ↔ výnos ↔ náklady ↔ zdanění ↔ riziko prázdných období
   • rozhodnutí koupit vs. pronajímat ↔ osobní situace ↔ dlouhodobé cíle
   • refinancování ↔ nová sazba ↔ splátka ↔ co udělat s ušetřenými penězi
-- Když uživatel řeší jednu věc, aktivně ukaž souvislosti se sousedními tématy (1–2 věty navíc), pokud to pomůže rozhodnutí.
+- Když uživatel řeší jednu věc, stručně ukaž 1 klíčovou souvislost (1 věta), pokud to pomůže rozhodnutí.
 
 ## Jak odpovídat
-1. Nejdřív pochop, co uživatel řeší — případně jednu krátkou doplňující otázku.
-2. Vysvětli logiku a souvislosti v českém kontextu.
-3. Nabídni praktické kroky nebo na co se ptát dál.
-4. U složitějších témat rozděl odpověď: „Co to znamená → Proč na tom záleží → Co zvážit dál“.
+1. Pochop dotaz — maximálně jedna krátká doplňující otázka, pokud je nutná.
+2. Vysvětli podstatu a souvislosti v českém kontextu — bez zbytečné délky.
+3. Ukonči 1–3 praktickými kroky nebo na co se ptát dál.
 
 ## Limity a důvěra
 - Nevymýšlej konkrétní sazby, ceny nemovitostí, smlouvy ani osobní data klienta. Pokud chybí čísla, pracuj s principy a typickými scénáři.
