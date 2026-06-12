@@ -4,6 +4,7 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useSta
 import Avatar from "./Avatar";
 import { RefreshIcon, SendIcon } from "./icons";
 import type { ChatMessage } from "@/lib/chat";
+import { CHAT_ERROR_GENERIC } from "@/lib/chat";
 
 type UiMessage = ChatMessage & { id: string; time: string };
 
@@ -83,12 +84,12 @@ const DinoChat = forwardRef<DinoChatHandle, DinoChatProps>(function DinoChat(
         const data = (await res.json()) as { ok: boolean; message?: string; error?: string };
 
         if (!res.ok || !data.ok || !data.message) {
-          throw new Error(data.error || "Odpověď se nepodařila načíst.");
+          throw new Error(data.error || CHAT_ERROR_GENERIC);
         }
 
         setMessages((prev) => [...prev, toUiMessage("assistant", data.message!)]);
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "Něco se pokazilo.";
+        const msg = err instanceof Error ? err.message : CHAT_ERROR_GENERIC;
         setError(msg);
       } finally {
         setLoading(false);

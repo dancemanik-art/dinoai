@@ -12,6 +12,34 @@ export type ChatRequestBody = {
 export const MAX_MESSAGES = 24;
 export const MAX_MESSAGE_LENGTH = 2000;
 
+/** Zpráva pro uživatele při výpadku kvóty / billingu OpenAI. */
+export const CHAT_ERROR_UNAVAILABLE =
+  "AI asistent je momentálně nedostupný z důvodu technické konfigurace. Zkuste to prosím za chvíli znovu.";
+
+/** Obecná chybová zpráva — bez interních detailů. */
+export const CHAT_ERROR_GENERIC =
+  "Omlouváme se, odpověď se nepodařilo načíst. Zkuste to prosím znovu.";
+
+export function isOpenAIQuotaOrBillingError(status: number, message?: string): boolean {
+  if (status === 429) return true;
+  const m = (message || "").toLowerCase();
+  return (
+    m.includes("quota") ||
+    m.includes("billing") ||
+    m.includes("insufficient") ||
+    m.includes("exceeded your current") ||
+    m.includes("payment") ||
+    m.includes("credit")
+  );
+}
+
+export function userFacingChatError(status: number, openAiMessage?: string): string {
+  if (isOpenAIQuotaOrBillingError(status, openAiMessage)) {
+    return CHAT_ERROR_UNAVAILABLE;
+  }
+  return CHAT_ERROR_GENERIC;
+}
+
 export const DINO_SYSTEM_PROMPT = `Jsi DINO AI — osobní průvodce světem financí, investic a nemovitostí. Vystupuješ jako zkušený český expert s lidským, klidným a profesionálním tónem. Inspiruješ se přístupem Daniela Ilka: vysvětluješ souvislosti, ne jen produkty.
 
 ## Osobnost a styl

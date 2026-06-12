@@ -1,27 +1,31 @@
 import { NextResponse } from "next/server";
-import { DINO_SYSTEM_PROMPT, validateChatRequest } from "@/lib/chat";
+import {
+  CHAT_ERROR_GENERIC,
+  CHAT_ERROR_UNAVAILABLE,
+  DINO_SYSTEM_PROMPT,
+  userFacingChatError,
+  validateChatRequest,
+} from "@/lib/chat";
 
 export const runtime = "nodejs";
 
 type OpenAIResponse = {
   choices?: { message?: { content?: string } }[];
-  error?: { message?: string };
+  error?: { message?: string; type?: string; code?: string };
 };
 
 export async function POST(request: Request) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
-    return NextResponse.json(
-      { ok: false, error: "Chat není nakonfigurován. Chybí OPENAI_API_KEY." },
-      { status: 503 },
-    );
+    console.error("[chat] OPENAI_API_KEY is not configured");
+    return NextResponse.json({ ok: false, error: CHAT_ERROR_UNAVAILABLE }, { status: 503 });
   }
 
   let body: unknown;
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ ok: false, error: "Neplatný požadavek." }, { status: 400 });
+    return NextResponse.json({ ok: false, error: CHAT_ERROR_GENERIC }, { status: 400 });
   }
 
   const parsed = validateChatRequest(body);
@@ -52,28 +56,28 @@ export async function POST(request: Request) {
     const data = (await res.json()) as OpenAIResponse;
 
     if (!res.ok) {
-      const detail = data.error?.message || "OpenAI API vrátilo chybu.";
-      console.error("[chat] OpenAI error:", res.status, detail);
+      const detail = data.error?.message || "unknown error";
+      console.error("[chat] OpenAI error:", {
+        status: res.status,
+        type: data.error?.type,
+        code: data.error?.code,
+        message: detail,
+      });
       return NextResponse.json(
-        { ok: false, error: "DINO AI teď nemůže odpovědět. Zkuste to prosím za chvíli." },
+        { ok: false, error: userFacingChatError(res.status, detail) },
         { status: 502 },
       );
     }
 
     const reply = data.choices?.[0]?.message?.content?.trim();
     if (!reply) {
-      return NextResponse.json(
-        { ok: false, error: "Prázdná odpověď od AI." },
-        { status: 502 },
-      );
+      console.error("[chat] OpenAI returned empty reply");
+      return NextResponse.json({ ok: false, error: CHAT_ERROR_GENERIC }, { status: 502 });
     }
 
     return NextResponse.json({ ok: true, message: reply });
   } catch (err) {
     console.error("[chat] request failed:", err);
-    return NextResponse.json(
-      { ok: false, error: "Spojení se serverem selhalo. Zkuste to znovu." },
-      { status: 500 },
-    );
+    return NextResponse.json({ ok: false, error: CHAT_ERROR_GENERIC }, { status: 500 });
   }
 }
